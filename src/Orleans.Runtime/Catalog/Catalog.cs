@@ -63,7 +63,6 @@ namespace Orleans.Runtime
 
             GC.GetTotalMemory(true); // need to call once w/true to ensure false returns OK value
 
-            CatalogInstruments.RegisterActivationCountObserve(() => activations.Count);
             MessagingProcessingInstruments.RegisterActivationDataAllObserve(() =>
             {
                 long counter = 0;
@@ -449,11 +448,14 @@ namespace Orleans.Runtime
                     }
                 }
 
-                logger.LogInformation(
-                    (int)ErrorCode.Catalog_SiloStatusChangeNotification,
-                    "Catalog is deactivating {Count} activations due to a failure of silo {Silo}, since it is a primary directory partition to these grain ids.",
-                    activationsToShutdown.Count,
-                    updatedSilo.ToStringWithHashCode());
+                if (activationsToShutdown.Count > 0)
+                {
+                    logger.LogInformation(
+                        (int)ErrorCode.Catalog_SiloStatusChangeNotification,
+                        "Catalog is deactivating {Count} activations due to a failure of silo {Silo}, since it is a primary directory partition to these grain ids.",
+                        activationsToShutdown.Count,
+                        updatedSilo.ToStringWithHashCode());
+                }
             }
             finally
             {

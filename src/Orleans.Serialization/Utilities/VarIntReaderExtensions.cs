@@ -1,4 +1,5 @@
 using Orleans.Serialization.Buffers;
+using Orleans.Serialization.Codecs;
 using Orleans.Serialization.WireProtocol;
 using System.Runtime.CompilerServices;
 
@@ -16,7 +17,7 @@ namespace Orleans.Serialization.Buffers
         /// <param name="reader">The reader.</param>
         /// <returns>A variable-width integer.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static sbyte ReadVarInt8<TInput>(this ref Reader<TInput> reader) => ZigZagDecode((byte)reader.ReadVarUInt32());
+        public static sbyte ReadVarInt8<TInput>(this ref Reader<TInput> reader) => ZigZagDecode(checked((byte)reader.ReadVarUInt32()));
 
         /// <summary>
         /// Reads a variable-width <see cref="ushort"/>.
@@ -25,7 +26,7 @@ namespace Orleans.Serialization.Buffers
         /// <param name="reader">The reader.</param>
         /// <returns>A variable-width integer.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static short ReadVarInt16<TInput>(this ref Reader<TInput> reader) => ZigZagDecode((ushort)reader.ReadVarUInt32());
+        public static short ReadVarInt16<TInput>(this ref Reader<TInput> reader) => ZigZagDecode(checked((ushort)reader.ReadVarUInt32()));
 
         /// <summary>
         /// Reads a variable-width <see cref="byte"/>.
@@ -34,7 +35,7 @@ namespace Orleans.Serialization.Buffers
         /// <param name="reader">The reader.</param>
         /// <returns>A variable-width integer.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static byte ReadVarUInt8<TInput>(this ref Reader<TInput> reader) => (byte)reader.ReadVarUInt32();
+        public static byte ReadVarUInt8<TInput>(this ref Reader<TInput> reader) => checked((byte)reader.ReadVarUInt32());
 
         /// <summary>
         /// Reads a variable-width <see cref="ushort"/>.
@@ -43,7 +44,7 @@ namespace Orleans.Serialization.Buffers
         /// <param name="reader">The reader.</param>
         /// <returns>A variable-width integer.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static ushort ReadVarUInt16<TInput>(this ref Reader<TInput> reader) => (ushort)reader.ReadVarUInt32();
+        public static ushort ReadVarUInt16<TInput>(this ref Reader<TInput> reader) => checked((ushort)reader.ReadVarUInt32());
 
         /// <summary>
         /// Reads a variable-width <see cref="int"/>.
@@ -74,8 +75,11 @@ namespace Orleans.Serialization.Buffers
         public static byte ReadUInt8<TInput>(this ref Reader<TInput> reader, WireType wireType) => wireType switch
         {
             WireType.VarInt => reader.ReadVarUInt8(),
-            WireType.Fixed32 => (byte)reader.ReadUInt32(),
-            WireType.Fixed64 => (byte)reader.ReadUInt64(),
+            WireType.Fixed32 => checked((byte)reader.ReadUInt32()),
+            WireType.Fixed64 => checked((byte)reader.ReadUInt64()),
+#if NET7_0_OR_GREATER
+            WireType.LengthPrefixed => checked((byte)UInt128Codec.ReadRaw(ref reader)),
+#endif
             _ => ExceptionHelper.ThrowArgumentOutOfRange<byte>(nameof(wireType)),
         };
 
@@ -90,8 +94,11 @@ namespace Orleans.Serialization.Buffers
         public static ushort ReadUInt16<TInput>(this ref Reader<TInput> reader, WireType wireType) => wireType switch
         {
             WireType.VarInt => reader.ReadVarUInt16(),
-            WireType.Fixed32 => (ushort)reader.ReadUInt32(),
-            WireType.Fixed64 => (ushort)reader.ReadUInt64(),
+            WireType.Fixed32 => checked((ushort)reader.ReadUInt32()),
+            WireType.Fixed64 => checked((ushort)reader.ReadUInt64()),
+#if NET7_0_OR_GREATER
+            WireType.LengthPrefixed => checked((ushort)UInt128Codec.ReadRaw(ref reader)),
+#endif
             _ => ExceptionHelper.ThrowArgumentOutOfRange<ushort>(nameof(wireType)),
         };
 
@@ -107,7 +114,10 @@ namespace Orleans.Serialization.Buffers
         {
             WireType.VarInt => reader.ReadVarUInt32(),
             WireType.Fixed32 => reader.ReadUInt32(),
-            WireType.Fixed64 => (uint)reader.ReadUInt64(),
+            WireType.Fixed64 => checked((uint)reader.ReadUInt64()),
+#if NET7_0_OR_GREATER
+            WireType.LengthPrefixed => checked((uint)UInt128Codec.ReadRaw(ref reader)),
+#endif
             _ => ExceptionHelper.ThrowArgumentOutOfRange<uint>(nameof(wireType)),
         };
 
@@ -124,6 +134,9 @@ namespace Orleans.Serialization.Buffers
             WireType.VarInt => reader.ReadVarUInt64(),
             WireType.Fixed32 => reader.ReadUInt32(),
             WireType.Fixed64 => reader.ReadUInt64(),
+#if NET7_0_OR_GREATER
+            WireType.LengthPrefixed => checked((ulong)UInt128Codec.ReadRaw(ref reader)),
+#endif
             _ => ExceptionHelper.ThrowArgumentOutOfRange<ulong>(nameof(wireType)),
         };
 
@@ -138,8 +151,11 @@ namespace Orleans.Serialization.Buffers
         public static sbyte ReadInt8<TInput>(this ref Reader<TInput> reader, WireType wireType) => wireType switch
         {
             WireType.VarInt => reader.ReadVarInt8(),
-            WireType.Fixed32 => (sbyte)reader.ReadInt32(),
-            WireType.Fixed64 => (sbyte)reader.ReadInt64(),
+            WireType.Fixed32 => checked((sbyte)reader.ReadInt32()),
+            WireType.Fixed64 => checked((sbyte)reader.ReadInt64()),
+#if NET7_0_OR_GREATER
+            WireType.LengthPrefixed => checked((sbyte)Int128Codec.ReadRaw(ref reader)),
+#endif
             _ => ExceptionHelper.ThrowArgumentOutOfRange<sbyte>(nameof(wireType)),
         };
 
@@ -154,8 +170,11 @@ namespace Orleans.Serialization.Buffers
         public static short ReadInt16<TInput>(this ref Reader<TInput> reader, WireType wireType) => wireType switch
         {
             WireType.VarInt => reader.ReadVarInt16(),
-            WireType.Fixed32 => (short)reader.ReadInt32(),
-            WireType.Fixed64 => (short)reader.ReadInt64(),
+            WireType.Fixed32 => checked((short)reader.ReadInt32()),
+            WireType.Fixed64 => checked((short)reader.ReadInt64()),
+#if NET7_0_OR_GREATER
+            WireType.LengthPrefixed => checked((short)Int128Codec.ReadRaw(ref reader)),
+#endif
             _ => ExceptionHelper.ThrowArgumentOutOfRange<short>(nameof(wireType)),
         };
 
@@ -171,7 +190,7 @@ namespace Orleans.Serialization.Buffers
         {
             if (wireType == WireType.VarInt)
             {
-                return reader.ReadVarInt32(); 
+                return reader.ReadVarInt32();
             }
 
             return ReadInt32Slower(ref reader, wireType);
@@ -181,7 +200,10 @@ namespace Orleans.Serialization.Buffers
         private static int ReadInt32Slower<TInput>(this ref Reader<TInput> reader, WireType wireType) => wireType switch
         {
             WireType.Fixed32 => reader.ReadInt32(),
-            WireType.Fixed64 => (int)reader.ReadInt64(),
+            WireType.Fixed64 => checked((int)reader.ReadInt64()),
+#if NET7_0_OR_GREATER
+            WireType.LengthPrefixed => checked((int)Int128Codec.ReadRaw(ref reader)),
+#endif
             _ => ExceptionHelper.ThrowArgumentOutOfRange<int>(nameof(wireType)),
         };
 
@@ -198,6 +220,9 @@ namespace Orleans.Serialization.Buffers
             WireType.VarInt => reader.ReadVarInt64(),
             WireType.Fixed32 => reader.ReadInt32(),
             WireType.Fixed64 => reader.ReadInt64(),
+#if NET7_0_OR_GREATER
+            WireType.LengthPrefixed => checked((long)Int128Codec.ReadRaw(ref reader)),
+#endif
             _ => ExceptionHelper.ThrowArgumentOutOfRange<long>(nameof(wireType)),
         };
 

@@ -6,6 +6,7 @@ using Orleans.Serialization.WireProtocol;
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
 using System.Security;
 
@@ -124,7 +125,7 @@ namespace Orleans.Serialization
             var callbacks = _serializationCallbacks.GetReferenceTypeCallbacks(type);
 
             var info = new SerializationInfo(type, _formatterConverter);
-            var result = FormatterServices.GetUninitializedObject(type);
+            var result = RuntimeHelpers.GetUninitializedObject(type);
             ReferenceCodec.RecordObject(reader.Session, result, placeholderReferenceId);
             callbacks.OnDeserializing?.Invoke(result, _streamingContext);
 
@@ -177,11 +178,11 @@ namespace Orleans.Serialization
             {
                 // For exceptions, the type is serialized as a string to facilitate safe deserialization.
                 var typeName = _typeConverter.Format(info.ObjectType);
-                StringCodec.WriteField(ref writer, 1, typeof(string), typeName);
+                StringCodec.WriteField(ref writer, 1, typeName);
             }
             else
             {
-                TypeSerializerCodec.WriteField(ref writer, 0, typeof(Type), info.ObjectType);
+                TypeSerializerCodec.WriteField(ref writer, 0, info.ObjectType);
             }
 
             callbacks.OnSerializing?.Invoke(value, _streamingContext);
@@ -197,7 +198,7 @@ namespace Orleans.Serialization
                     ObjectType = field.ObjectType
                 };
 
-                _entrySerializer.WriteField(ref writer, first ? 1 : (uint)0, SerializationEntryCodec.SerializationEntryType, surrogate);
+                _entrySerializer.WriteField(ref writer, first ? 1 : (uint)0, typeof(SerializationEntrySurrogate), surrogate);
                 if (first)
                 {
                     first = false;

@@ -3,7 +3,6 @@
     <RootNamespace>UnitTests.GrainInterfaces</RootNamespace>
     <TargetFramework>$(MinTestTargetFramework)</TargetFramework>
     <OrleansBuildTimeCodeGen>true</OrleansBuildTimeCodeGen>
-    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,6 +13,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="protobuf-net" Version="$(ProtobufNetVersion)" />
+    <PackageReference Include="protobuf-net" />
   </ItemGroup>
 </Project>

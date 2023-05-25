@@ -310,6 +310,7 @@ namespace Orleans.Hosting
             services.AddTransient<IConfigurationValidator, DevelopmentClusterMembershipOptionsValidator>();
             services.AddTransient<IConfigurationValidator, GrainTypeOptionsValidator>();
             services.AddTransient<IValidateOptions<SiloMessagingOptions>, SiloMessagingOptionsValidator>();
+            services.AddTransient<IOptions<MessagingOptions>>(static sp => sp.GetRequiredService<IOptions<SiloMessagingOptions>>());
 
             // Enable hosted client.
             services.TryAddSingleton<HostedClient>();
@@ -345,6 +346,12 @@ namespace Orleans.Hosting
             services.TryAddSingleton<IPersistentStateFactory, PersistentStateFactory>();
             services.TryAddSingleton(typeof(IAttributeToFactoryMapper<PersistentStateAttribute>), typeof(PersistentStateAttributeMapper));
 
+            // IAsyncEnumerable support
+            services.AddScoped<IAsyncEnumerableGrainExtension, AsyncEnumerableGrainExtension>();
+            services.AddTransientKeyedService<Type, IGrainExtension>(
+                typeof(IAsyncEnumerableGrainExtension),
+                (sp, _) => sp.GetRequiredService<IAsyncEnumerableGrainExtension>());
+
             // Networking
             services.TryAddSingleton<ConnectionCommon>();
             services.TryAddSingleton<ConnectionManager>();
@@ -371,7 +378,7 @@ namespace Orleans.Hosting
             services.AddSingleton<IPostConfigureOptions<OrleansJsonSerializerOptions>, ConfigureOrleansJsonSerializerOptions>();
             services.AddSingleton<OrleansJsonSerializer>();
 
-            services.TryAddTransient<IMessageSerializer>(sp => ActivatorUtilities.CreateInstance<MessageSerializer>(
+            services.TryAddTransient(sp => ActivatorUtilities.CreateInstance<MessageSerializer>(
                 sp,
                 sp.GetRequiredService<IOptions<SiloMessagingOptions>>().Value));
             services.TryAddSingleton<ConnectionFactory, SiloConnectionFactory>();

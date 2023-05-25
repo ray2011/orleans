@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Runtime.Serialization;
 using Microsoft.Extensions.Options;
@@ -186,10 +187,10 @@ namespace Orleans.Serialization
         /// <inheritdoc />
         public void Serialize<TBufferWriter>(ref Writer<TBufferWriter> writer, Exception value) where TBufferWriter : IBufferWriter<byte>
         {
-            StringCodec.WriteField(ref writer, 0, typeof(string), value.Message);
-            StringCodec.WriteField(ref writer, 1, typeof(string), value.StackTrace);
+            StringCodec.WriteField(ref writer, 0, value.Message);
+            StringCodec.WriteField(ref writer, 1, value.StackTrace);
             WriteField(ref writer, 1, typeof(Exception), value.InnerException);
-            Int32Codec.WriteField(ref writer, 1, typeof(int), value.HResult);
+            Int32Codec.WriteField(ref writer, 1, value.HResult);
             if (GetDataProperty(value) is { } dataDictionary)
             {
                 _dictionaryCodec.WriteField(ref writer, 1, typeof(Dictionary<object, object>), dataDictionary);
@@ -199,11 +200,11 @@ namespace Orleans.Serialization
         /// <inheritdoc />
         public void SerializeException<TBufferWriter>(ref Writer<TBufferWriter> writer, Exception value) where TBufferWriter : IBufferWriter<byte>
         {
-            StringCodec.WriteField(ref writer, 0, typeof(string), _typeConverter.Format(value.GetType()));
-            StringCodec.WriteField(ref writer, 1, typeof(string), value.Message);
-            StringCodec.WriteField(ref writer, 1, typeof(string), value.StackTrace);
+            StringCodec.WriteField(ref writer, 0, _typeConverter.Format(value.GetType()));
+            StringCodec.WriteField(ref writer, 1, value.Message);
+            StringCodec.WriteField(ref writer, 1, value.StackTrace);
             WriteField(ref writer, 1, typeof(Exception), value.InnerException);
-            Int32Codec.WriteField(ref writer, 1, typeof(int), value.HResult);
+            Int32Codec.WriteField(ref writer, 1, value.HResult);
             if (GetDataProperty(value) is { } dataDictionary)
             {
                 _dictionaryCodec.WriteField(ref writer, 1, typeof(Dictionary<object, object>), dataDictionary);
@@ -378,7 +379,7 @@ namespace Orleans.Serialization
                     }
                     else
                     {
-                        result = (Exception)FormatterServices.GetUninitializedObject(type);
+                        result = (Exception)RuntimeHelpers.GetUninitializedObject(type);
                     }
                 }
                 catch (Exception constructorException)

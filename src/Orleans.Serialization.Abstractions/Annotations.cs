@@ -12,9 +12,9 @@ namespace Orleans
     {
         /// <summary>
         /// Get or sets if primary constructor parameters should automatically be included as Serializable fields.
-        /// Defaults to <see langword="true"/> for record types.
+        /// Defaults to <see langword="true"/> for <see langword="record"/> types, <see langword="false"/> otherwise.
         /// </summary>
-        public bool IncludePrimaryConstructorParameters { get; init; } = true;
+        public bool IncludePrimaryConstructorParameters { get; init; }
 
         /// <summary>
         /// Get or sets when Orleans should auto-assign field ids. The default behavior is to not auto-assign field ids.
@@ -536,7 +536,7 @@ namespace Orleans
         TValue ConvertFromSurrogate(in TSurrogate surrogate);
 
         /// <summary>
-        /// Converts a value to the valuetype.
+        /// Converts a value to the value type.
         /// </summary>
         /// <param name="value">The value.</param>
         /// <returns>The surrogate.</returns>
@@ -554,5 +554,26 @@ namespace Orleans
         /// <param name="surrogate">The surrogate.</param>
         /// <param name="value">The value.</param>
         void Populate(in TSurrogate surrogate, TValue value);
+    }
+}
+
+namespace Orleans.Invocation
+{
+    /// <summary>
+    /// Applied to invokable base types (see TaskRequest) to indicate that instances of derived types should be returned directly from generated proxy methods rather than being passed to
+    /// the runtime for invocation. This is used to support calling patterns other than request-response, such as streaming.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Class)]
+    public sealed class ReturnValueProxyAttribute : Attribute
+    {
+        public ReturnValueProxyAttribute(string initializerMethodName)
+        {
+            InitializerMethodName = initializerMethodName;
+        }
+
+        /// <summary>
+        /// The name of the method to 
+        /// </summary>
+        public string InitializerMethodName { get; }
     }
 }

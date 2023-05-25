@@ -22,7 +22,9 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v1
       with:
-        include-prerelease: true
+        dotnet-version: |
+          3.1.x
+          7.0.x
     - name: Build
       run: dotnet build
     - uses: actions/upload-artifact@v3
@@ -52,7 +54,9 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v2
       with:
-        include-prerelease: true
+        dotnet-version: |
+          3.1.x
+          7.0.x
     - name: Test
       run: dotnet test --filter "Category=${{ matrix.provider }}&(Category=BVT|Category=SlowBVT|Category=Functional)" --blame-hang-timeout 10m --logger "trx" -- -parallel none -noshadow
       env:
@@ -90,7 +94,9 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v2
       with:
-        include-prerelease: true
+        dotnet-version: |
+          3.1.x
+          7.0.x
     - name: Test
       run: dotnet test --filter "Category=${{ matrix.provider }}&(Category=BVT|Category=SlowBVT|Category=Functional)" --blame-hang-timeout 10m --logger "trx" -- -parallel none -noshadow
       env:
@@ -113,7 +119,7 @@ jobs:
         provider: ["MySql"]
     services:
       mariadb:
-        image: mariadb
+        image: mariadb:10.6
         ports:
           - 3306:3306
         env:
@@ -124,7 +130,9 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v1
       with:
-        include-prerelease: true
+        dotnet-version: |
+          3.1.x
+          7.0.x
     - name: Test
       run: dotnet test --filter "Category=${{ matrix.provider }}&(Category=BVT|Category=SlowBVT|Category=Functional)" --blame-hang-timeout 10m --logger "trx" -- -parallel none -noshadow
       env:
@@ -162,7 +170,9 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v1
       with:
-        include-prerelease: true
+        dotnet-version: |
+          3.1.x
+          7.0.x
     - name: Test
       run: dotnet test --filter "Category=${{ matrix.provider }}&(Category=BVT|Category=SlowBVT|Category=Functional)" --blame-hang-timeout 10m --logger "trx" -- -parallel none -noshadow
       env:
@@ -198,7 +208,9 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v1
       with:
-        include-prerelease: true
+        dotnet-version: |
+          3.1.x
+          7.0.x
     - name: Test
       run: dotnet test --filter "Category=${{ matrix.provider }}&Category=${{ matrix.suite }}" --framework ${{ matrix.framework }} --blame-hang-timeout 10m --logger "trx" -- -parallel none -noshadow
       env:
@@ -233,7 +245,9 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v1
       with:
-        include-prerelease: true
+        dotnet-version: |
+          3.1.x
+          7.0.x
     - name: Test
       run: dotnet test --filter "Category=${{ matrix.provider }}&(Category=BVT|Category=SlowBVT|Category=Functional)" --blame-hang-timeout 10m --logger "trx" -- -parallel none -noshadow
       env:
@@ -268,7 +282,9 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v1
       with:
-        include-prerelease: true
+        dotnet-version: |
+          3.1.x
+          7.0.x
     - name: Test
       run: dotnet test --filter "Category=${{ matrix.provider }}&(Category=BVT|Category=SlowBVT|Category=Functional)" --blame-hang-timeout 10m --logger "trx" -- -parallel none -noshadow
       env:
@@ -304,7 +320,9 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v1
       with:
-        include-prerelease: true
+        dotnet-version: |
+          3.1.x
+          7.0.x
     - name: Test
       run: dotnet test --filter "Category=${{ matrix.provider }}&(Category=BVT|Category=SlowBVT|Category=Functional)" --blame-hang-timeout 10m --logger "trx" -- -parallel none -noshadow
       env:

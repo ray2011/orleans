@@ -23,7 +23,8 @@ namespace Orleans.CodeGenerator
             List<INamedTypeSymbol> serializationHooks,
             INamedTypeSymbol baseType,
             List<TypeSyntax> constructorArguments,
-            CompoundTypeAliasComponent[] compoundTypeAliasArguments)
+            CompoundTypeAliasComponent[] compoundTypeAliasArguments,
+            string returnValueInitializerMethod)
         {
             InterfaceDescription = interfaceDescription;
             _methodDescription = methodDescription;
@@ -35,13 +36,14 @@ namespace Orleans.CodeGenerator
             SerializationHooks = serializationHooks;
             ActivatorConstructorParameters = constructorArguments;
             CompoundTypeAliasArguments = compoundTypeAliasArguments;
+            ReturnValueInitializerMethod = returnValueInitializerMethod;
         }
 
         public Accessibility Accessibility { get; }
         public TypeSyntax TypeSyntax => _typeSyntax ??= CreateTypeSyntax();
         public TypeSyntax OpenTypeSyntax => _openTypeSyntax ??= CreateOpenTypeSyntax();
         public bool HasComplexBaseType => BaseType is { SpecialType: not SpecialType.System_Object };
-        public bool SupportsPrimaryConstructorParameters => false;
+        public bool IncludePrimaryConstructorParameters => false;
         public INamedTypeSymbol BaseType { get; }
         public TypeSyntax BaseTypeSyntax => _baseTypeSyntax ??= BaseType.ToTypeSyntax(_methodDescription.TypeParameterSubstitutions);
         public string Namespace => GeneratedNamespace;
@@ -68,6 +70,7 @@ namespace Orleans.CodeGenerator
         public List<TypeSyntax> ActivatorConstructorParameters { get; }
         public bool HasActivatorConstructor => UseActivator;
         public CompoundTypeAliasComponent[] CompoundTypeAliasArguments {get;}
+        public string ReturnValueInitializerMethod { get; }
 
         public ExpressionSyntax GetObjectCreationExpression(LibraryTypes libraryTypes) => ObjectCreationExpression(TypeSyntax, ArgumentList(), null);
 

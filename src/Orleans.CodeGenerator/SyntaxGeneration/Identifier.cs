@@ -116,6 +116,17 @@ namespace Orleans.CodeGenerator.SyntaxGeneration
             }
         }
 
-        public static string SanitizeIdentifierName(string input) => Regex.Replace(input, "[-\\.]", "_");
+        private static readonly Regex SanitizeIdentifierRegex = new("^([0-9]+)|([^0-9a-zA-Z_]+)", RegexOptions.Compiled);
+
+        public static string SanitizeIdentifierName(string input) => SanitizeIdentifierRegex.Replace(
+            input,
+            static match => match.Value switch
+            {
+                // Prefix leading digits with an '_' to make them a valid identifier.
+                { Length: > 0 } value when char.IsDigit(value[0]) => $"_{value}",
+
+                // Eliminate all other matches by replacing them with an empty string.
+                _ => ""
+            });
     }
 }

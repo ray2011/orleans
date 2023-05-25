@@ -13,6 +13,7 @@ using Orleans.Core.Internal;
 using Orleans.GrainDirectory;
 using Orleans.Internal;
 using Orleans.Runtime.Scheduler;
+using Orleans.Serialization;
 using Orleans.Serialization.Invocation;
 using Orleans.Serialization.TypeSystem;
 
@@ -180,7 +181,7 @@ namespace Orleans.Runtime
 
         public TimeSpan CollectionAgeLimit => _shared.CollectionAgeLimit;
 
-        public TTarget GetTarget<TTarget>() where TTarget : class => (TTarget)GrainInstance; 
+        public TTarget GetTarget<TTarget>() where TTarget : class => (TTarget)GrainInstance;
 
         TComponent ITargetHolder.GetComponent<TComponent>()
         {
@@ -214,6 +215,11 @@ namespace Orleans.Runtime
             else if (_extras?.Components is { } components && components.TryGetValue(typeof(TComponent), out var resultObj))
             {
                 result = (TComponent)resultObj;
+            }
+            else if (ActivationServices.GetService<TComponent>() is { } component)
+            {
+                SetComponent(component);
+                result = component;
             }
             else
             {
@@ -592,10 +598,20 @@ namespace Orleans.Runtime
 
         public async ValueTask DisposeAsync()
         {
-            var activator = GetComponent<IGrainActivator>();
-            if (activator != null)
+            _extras ??= new();
+            if (_extras.IsDisposing) return;
+            _extras.IsDisposing = true;
+
+            try
             {
-                await activator.DisposeInstance(this, GrainInstance);
+                var activator = GetComponent<IGrainActivator>();
+                if (activator != null)
+                {
+                    await activator.DisposeInstance(this, GrainInstance);
+                }
+            }
+            catch (ObjectDisposedException)
+            {
             }
 
             switch (_serviceScope)
@@ -657,9 +673,10 @@ namespace Orleans.Runtime
 
         bool IActivationWorkingSetMember.IsCandidateForRemoval(bool wouldRemove)
         {
+            const int IdlenessLowerBound = 10_000;
             lock (this)
             {
-                var inactive = IsInactive;
+                var inactive = IsInactive && _idleDuration.ElapsedMilliseconds > IdlenessLowerBound;
 
                 // This instance will remain in the working set if it is either not pending removal or if it is currently active.
                 _isInWorkingSet = !wouldRemove || !inactive;
@@ -1202,7 +1219,7 @@ namespace Orleans.Runtime
                 {
                     CatalogInstruments.ActivationFailedToActivate.Add(1);
 
-                    // Capture the exeption so that it can be propagated to rejection messages
+                    // Capture the exception so that it can be propagated to rejection messages
                     var sourceException = (exception as OrleansLifecycleCanceledException)?.InnerException ?? exception;
                     _shared.Logger.LogError((int)ErrorCode.Catalog_ErrorCallingActivate, sourceException, "Error activating grain {Grain}", this);
 
@@ -1270,7 +1287,7 @@ namespace Orleans.Runtime
                 try
                 {
                     var result = await _shared.InternalRuntime.GrainLocator.Register(Address);
-                    if (Address.Equals(result))
+                    if (Address.Matches(result))
                     {
                         success = true;
                     }
@@ -1556,6 +1573,11 @@ namespace Orleans.Runtime
         /// </summary>
         private class ActivationDataExtra
         {
+            private const int IsStuckProcessingMessageFlag = 1 << 0;
+            private const int IsStuckDeactivatingFlag = 1 << 1;
+            private const int IsDisposingFlag = 1 << 2;
+            private byte _flags;
+
             public Dictionary<Type, object> Components { get; set; }
 
             public HashSet<IGrainTimer> Timers { get; set; }
@@ -1572,11 +1594,25 @@ namespace Orleans.Runtime
 
             public DateTime? DeactivationStartTime { get; set; }
 
-            public bool IsStuckProcessingMessage { get; set; }
-
-            public bool IsStuckDeactivating { get; set; }
+            public bool IsStuckProcessingMessage { get => GetFlag(IsStuckProcessingMessageFlag); set => SetFlag(IsStuckProcessingMessageFlag, value); }
+            public bool IsStuckDeactivating { get => GetFlag(IsStuckDeactivatingFlag); set => SetFlag(IsStuckDeactivatingFlag, value); }
+            public bool IsDisposing { get => GetFlag(IsDisposingFlag); set => SetFlag(IsDisposingFlag, value); }
 
             public DeactivationReason DeactivationReason { get; set; }
+
+            private void SetFlag(int flag, bool value)
+            {
+                if (value)
+                {
+                    _flags |= (byte)flag;
+                }
+                else
+                {
+                    _flags &= (byte)~flag;
+                }
+            }
+
+            private bool GetFlag(int flag) => (_flags & flag) != 0;
         }
 
         private class Command

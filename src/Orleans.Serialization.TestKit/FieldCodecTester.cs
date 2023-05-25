@@ -13,6 +13,8 @@ using System.Linq;
 using System.Text;
 using Xunit;
 using Orleans.Serialization.Serializers;
+using Xunit.Abstractions;
+using System.Threading;
 
 namespace Orleans.Serialization.TestKit
 {
@@ -23,8 +25,15 @@ namespace Orleans.Serialization.TestKit
         private readonly IServiceProvider _serviceProvider;
         private readonly SerializerSessionPool _sessionPool;
 
-        protected FieldCodecTester()
+        protected FieldCodecTester(ITestOutputHelper output)
         {
+#if NET6_0_OR_GREATER
+            var seed = Random.Shared.Next();
+#else
+            var seed = new Random().Next();
+#endif
+            output.WriteLine($"Random seed: {seed}");
+            Random = new(seed);
             var services = new ServiceCollection();
             _ = services.AddSerializer(builder => builder.Configure(config => config.FieldCodecs.Add(typeof(TCodec))));
 
@@ -38,6 +47,8 @@ namespace Orleans.Serialization.TestKit
             _serviceProvider = services.BuildServiceProvider();
             _sessionPool = _serviceProvider.GetService<SerializerSessionPool>();
         }
+
+        protected Random Random { get; }
 
         protected IServiceProvider ServiceProvider => _serviceProvider;
 
@@ -115,7 +126,7 @@ namespace Orleans.Serialization.TestKit
         public void CorrectlyAdvancesReferenceCounter()
         {
             var pipe = new Pipe();
-            using var writerSession = _sessionPool.GetSession(); 
+            using var writerSession = _sessionPool.GetSession();
             var writer = Writer.Create(pipe.Writer, writerSession);
             var writerCodec = CreateCodec();
             var beforeReference = writer.Session.ReferencedObjects.CurrentReferenceId;
@@ -133,7 +144,7 @@ namespace Orleans.Serialization.TestKit
             pipe.Writer.Complete();
 
             _ = pipe.Reader.TryRead(out var readResult);
-            using var readerSession = _sessionPool.GetSession(); 
+            using var readerSession = _sessionPool.GetSession();
             var reader = Reader.Create(readResult.Buffer, readerSession);
 
             var previousPos = reader.Position;
@@ -428,6 +439,13 @@ namespace Orleans.Serialization.TestKit
                     Assert.Equal(expected, result);
                 }
 
+                {
+                    var writer = Writer.CreatePooled(_sessionPool.GetSession());
+                    serializer.Serialize(original, ref writer);
+                    var result = writer.Output.ToArray();
+                    Assert.Equal(expected, result);
+                }
+
                 var bytes = new byte[10240];
 
                 {
@@ -485,6 +503,180 @@ namespace Orleans.Serialization.TestKit
                     Assert.Equal(expected, result);
                 }
             }
+        }
+
+        [Fact]
+        public void CanRoundTripCollectionViaSerializer()
+        {
+            var serializer = _serviceProvider.GetRequiredService<Serializer<List<TValue>>>();
+
+            var original = new List<TValue>();
+            original.AddRange(TestValues);
+            for (var i = 0; i < 5; i++)
+            {
+                original.Add(CreateValue());
+            }
+
+            using var writerSession = _sessionPool.GetSession();
+            var writer = Writer.CreatePooled(writerSession);
+            serializer.Serialize(original, ref writer);
+            using var readerSession = _sessionPool.GetSession();
+            var reader = Reader.Create(writer.Output.AsReadOnlySequence(), readerSession);
+            var deserialized = serializer.Deserialize(ref reader);
+
+            Assert.Equal(original.Count, deserialized.Count);
+            for (var i = 0; i < original.Count; ++i)
+            {
+                var isEqual = Equals(original[i], deserialized[i]);
+                Assert.True(
+                    isEqual,
+                    isEqual ? string.Empty : $"Deserialized value at index {i}, \"{deserialized}\", must equal original value, \"{original}\"");
+            }
+
+            Assert.Equal(writer.Position, reader.Position);
+            Assert.Equal(writerSession.ReferencedObjects.CurrentReferenceId, readerSession.ReferencedObjects.CurrentReferenceId);
+        }
+
+        [Fact]
+        public void CanCopyCollectionViaSerializer()
+        {
+            var copier = _serviceProvider.GetRequiredService<DeepCopier<List<TValue>>>();
+
+            var original = new List<TValue>();
+            original.AddRange(TestValues);
+            for (var i = 0; i < 5; i++)
+            {
+                original.Add(CreateValue());
+            }
+
+            var copy = copier.Copy(original);
+
+            Assert.Equal(original.Count, copy.Count);
+            for (var i = 0; i < original.Count; ++i)
+            {
+                var isEqual = Equals(original[i], copy[i]);
+                Assert.True(
+                    isEqual,
+                    isEqual ? string.Empty : $"Copied value at index {i}, \"{copy}\", must equal original value, \"{original}\"");
+            }
+        }
+
+        [Fact]
+        public void CanCopyCollectionViaUntypedSerializer()
+        {
+            var copier = _serviceProvider.GetRequiredService<DeepCopier<List<object>>>();
+
+            var original = new List<object>();
+            foreach (var value in TestValues)
+            {
+                original.Add(value);
+            }
+
+            for (var i = 0; i < 5; i++)
+            {
+                original.Add(CreateValue());
+            }
+
+            var copy = copier.Copy(original);
+
+            Assert.Equal(original.Count, copy.Count);
+            for (var i = 0; i < original.Count; ++i)
+            {
+                var isEqual = Equals((TValue)original[i], (TValue)copy[i]);
+                Assert.True(
+                    isEqual,
+                    isEqual ? string.Empty : $"Copied value at index {i}, \"{copy}\", must equal original value, \"{original}\"");
+            }
+        }
+
+        [Fact]
+        public void CanCopyTupleViaSerializer_Untyped()
+        {
+            var copier = _serviceProvider.GetRequiredService<DeepCopier<(string, object, object, string)>>();
+            var value = TestValues.Reverse().Concat(new[] { CreateValue(), CreateValue() }).Take(2).ToArray();
+
+            var original = (Guid.NewGuid().ToString(), (object)value[0], (object)value[1], Guid.NewGuid().ToString());
+
+            var copy = copier.Copy(original);
+
+            var isEqual = Equals(original.Item1, copy.Item1);
+            Assert.True(
+                isEqual,
+                isEqual ? string.Empty : $"Copied value for item 1, \"{copy.Item1}\", must equal original value, \"{original.Item1}\"");
+            isEqual = Equals((TValue)original.Item2, (TValue)copy.Item2);
+            Assert.True(
+                isEqual,
+                isEqual ? string.Empty : $"Copied value for item 2, \"{copy.Item2}\", must equal original value, \"{original.Item2}\"");
+            isEqual = Equals((TValue)original.Item3, (TValue)copy.Item3);
+            Assert.True(
+                isEqual,
+                isEqual ? string.Empty : $"Copied value for item 3, \"{copy.Item3}\", must equal original value, \"{original.Item3}\"");
+            isEqual = Equals(original.Item4, copy.Item4);
+            Assert.True(
+                isEqual,
+                isEqual ? string.Empty : $"Copied value for item 4, \"{copy.Item4}\", must equal original value, \"{original.Item4}\"");
+        }
+
+        [Fact]
+        public void CanCopyTupleViaSerializer()
+        {
+            var copier = _serviceProvider.GetRequiredService<DeepCopier<(string, TValue, TValue, string)>>();
+
+            var original = (Guid.NewGuid().ToString(), CreateValue(), CreateValue(), Guid.NewGuid().ToString());
+
+            var copy = copier.Copy(original);
+
+            var isEqual = Equals(original.Item1, copy.Item1);
+            Assert.True(
+                isEqual,
+                isEqual ? string.Empty : $"Copied value for item 1, \"{copy}\", must equal original value, \"{original}\"");
+            isEqual = Equals(original.Item2, copy.Item2);
+            Assert.True(
+                isEqual,
+                isEqual ? string.Empty : $"Copied value for item 2, \"{copy}\", must equal original value, \"{original}\"");
+            isEqual = Equals(original.Item3, copy.Item3);
+            Assert.True(
+                isEqual,
+                isEqual ? string.Empty : $"Copied value for item 3, \"{copy}\", must equal original value, \"{original}\"");
+            isEqual = Equals(original.Item4, copy.Item4);
+            Assert.True(
+                isEqual,
+                isEqual ? string.Empty : $"Copied value for item 4, \"{copy}\", must equal original value, \"{original}\"");
+        }
+
+        [Fact]
+        public void CanRoundTripTupleViaSerializer()
+        {
+            var serializer = _serviceProvider.GetRequiredService<Serializer<(string, TValue, TValue, string)>>();
+
+            var original = (Guid.NewGuid().ToString(), CreateValue(), CreateValue(), Guid.NewGuid().ToString());
+
+            using var writerSession = _sessionPool.GetSession();
+            var writer = Writer.CreatePooled(writerSession);
+            serializer.Serialize(original, ref writer);
+            using var readerSession = _sessionPool.GetSession();
+            var reader = Reader.Create(writer.Output.AsReadOnlySequence(), readerSession);
+            var deserialized = serializer.Deserialize(ref reader);
+
+            var isEqual = Equals(original.Item1, deserialized.Item1);
+            Assert.True(
+                isEqual,
+                isEqual ? string.Empty : $"Deserialized value for item 1, \"{deserialized}\", must equal original value, \"{original}\"");
+            isEqual = Equals(original.Item2, deserialized.Item2);
+            Assert.True(
+                isEqual,
+                isEqual ? string.Empty : $"Deserialized value for item 2, \"{deserialized}\", must equal original value, \"{original}\"");
+            isEqual = Equals(original.Item3, deserialized.Item3);
+            Assert.True(
+                isEqual,
+                isEqual ? string.Empty : $"Deserialized value for item 3, \"{deserialized}\", must equal original value, \"{original}\"");
+            isEqual = Equals(original.Item4, deserialized.Item4);
+            Assert.True(
+                isEqual,
+                isEqual ? string.Empty : $"Deserialized value for item 4, \"{deserialized}\", must equal original value, \"{original}\"");
+
+            Assert.Equal(writer.Position, reader.Position);
+            Assert.Equal(writerSession.ReferencedObjects.CurrentReferenceId, readerSession.ReferencedObjects.CurrentReferenceId);
         }
 
         [Fact]

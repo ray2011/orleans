@@ -1,7 +1,6 @@
 using System;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
-using System.Runtime.Serialization;
 
 namespace Orleans.Serialization.Activators
 {
@@ -21,9 +20,9 @@ namespace Orleans.Serialization.Activators
             var il = method.GetILGenerator();
             il.Emit(OpCodes.Newobj, ctor);
             il.Emit(OpCodes.Ret);
-            return method.CreateDelegate<Func<T>>();
+            return (Func<T>)method.CreateDelegate(typeof(Func<T>));
         }
 
-        public T Create() => _constructor is { } ctor ? ctor() : Unsafe.As<T>(FormatterServices.GetUninitializedObject(_type));
+        public T Create() => _constructor is { } ctor ? ctor() : Unsafe.As<T>(RuntimeHelpers.GetUninitializedObject(_type));
     }
 }

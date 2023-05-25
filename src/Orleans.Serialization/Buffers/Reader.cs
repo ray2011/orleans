@@ -115,33 +115,11 @@ namespace Orleans.Serialization.Buffers
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override void ReadBytes(Span<byte> destination)
         {
-#if NETCOREAPP3_1_OR_GREATER
             var count = _stream.Read(destination);
             if (count < destination.Length)
             {
                 ThrowInsufficientData();
             }
-#else
-            byte[] array = default;
-            try
-            {
-                array = _memoryPool.Rent(destination.Length);
-                var count = _stream.Read(array, 0, destination.Length);
-                if (count < destination.Length)
-                {
-                    ThrowInsufficientData();
-                }
-
-                array.CopyTo(destination);
-            }
-            finally
-            {
-                if (array is object)
-                {
-                    _memoryPool.Return(array);
-                }
-            }
-#endif
         }
 
         public override void ReadBytes(byte[] destination, int offset, int length)
@@ -158,15 +136,9 @@ namespace Orleans.Serialization.Buffers
 #endif
         public override uint ReadUInt32()
         {
-#if NETCOREAPP3_1_OR_GREATER
             Span<byte> buffer = stackalloc byte[sizeof(uint)];
             ReadBytes(buffer);
             return BinaryPrimitives.ReadUInt32LittleEndian(buffer);
-#else
-            var buffer = GetScratchBuffer();
-            ReadBytes(buffer, 0, sizeof(uint));
-            return BinaryPrimitives.ReadUInt32LittleEndian(buffer.AsSpan(0, sizeof(uint)));
-#endif
         }
 
 #if NET5_0_OR_GREATER
@@ -174,15 +146,9 @@ namespace Orleans.Serialization.Buffers
 #endif
         public override ulong ReadUInt64()
         {
-#if NETCOREAPP3_1_OR_GREATER
             Span<byte> buffer = stackalloc byte[sizeof(ulong)];
             ReadBytes(buffer);
             return BinaryPrimitives.ReadUInt64LittleEndian(buffer);
-#else
-            var buffer = GetScratchBuffer();
-            ReadBytes(buffer, 0, sizeof(ulong));
-            return BinaryPrimitives.ReadUInt64LittleEndian(buffer.AsSpan(0, sizeof(ulong)));
-#endif
         }
 
         public override void Skip(long count) => _ = _stream.Seek(count, SeekOrigin.Current);
@@ -739,7 +705,7 @@ namespace Orleans.Serialization.Buffers
         /// Fills <paramref name="destination"/> with bytes read from the input.
         /// </summary>
         /// <param name="destination">The destination.</param>
-        public void ReadBytes(Span<byte> destination)
+        public void ReadBytes(scoped Span<byte> destination)
         {
             if (IsReadOnlySequenceInput || IsSpanInput)
             {
@@ -762,7 +728,7 @@ namespace Orleans.Serialization.Buffers
             }
         }
 
-        private void ReadBytesMultiSegment(Span<byte> dest)
+        private void ReadBytesMultiSegment(scoped Span<byte> dest)
         {
             while (true)
             {
@@ -837,19 +803,19 @@ namespace Orleans.Serialization.Buffers
 
                 ulong result = Unsafe.ReadUnaligned<ulong>(ref readHead);
                 var bytesNeeded = BitOperations.TrailingZeroCount((uint)result) + 1;
-                result >>= bytesNeeded;
+                if (bytesNeeded > 5) ThrowOverflowException();
                 _bufferPos = pos + bytesNeeded;
-
-                // Mask off invalid data
-                var fullWidthReadMask = ~((uint)bytesNeeded - 6 + 1);
-                var mask = ((1U << (bytesNeeded * 7)) - 1) | fullWidthReadMask;
-                return (uint)result & mask;
+                result &= (1UL << (bytesNeeded * 8)) - 1;
+                result >>= bytesNeeded;
+                return checked((uint)result);
             }
             else
             {
                 return ReadVarUInt32Slow();
             }
         }
+
+        private static void ThrowOverflowException() => throw new OverflowException();
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         private uint ReadVarUInt32Slow()
@@ -870,7 +836,7 @@ namespace Orleans.Serialization.Buffers
             }
 
             result >>= numBytes;
-            return (uint)result;
+            return checked((uint)result);
         }
 
         /// <summary>
